@@ -1,7 +1,10 @@
 import { RPM } from "../path.js";
 import { Howl } from "../../System/Globals.js";
+import { THREE } from "../../System/Globals.js";
 
 const pluginName = "More sound options";
+
+const up = new THREE.Vector3(0, 1, 0);
 
 var audioList = [];
 var queue = [];
@@ -56,11 +59,14 @@ RPM.Manager.Plugins.registerCommand(pluginName, "Remove track", (id) =>
 {
 	queue.push(function ()
 	{
-		audioList[id].stop();
-		audioList[id].unload();
-		audioList.splice(id, 1);
-		while (audioList[audioList.length - 1] === null)
-			audioList.pop();
+		if (!!audioList[id])
+		{
+			audioList[id].stop();
+			audioList[id].unload();
+			audioList.splice(id, 1);
+			while (audioList[audioList.length - 1] === null)
+				audioList.pop();
+		}
 		callNext();
 	});
 	if (!busy)
@@ -93,7 +99,7 @@ RPM.Manager.Plugins.registerCommand(pluginName, "Seek", (id, minute, second) =>
 {
 	queue.push(function ()
 	{
-		audioList[id].seek(minute * 60 + second);
+		audioList[id].seek((minute * 60 + second) % audioList[id].duration());
 		callNext();
 	});
 	if (!busy)
@@ -153,4 +159,17 @@ RPM.Manager.Plugins.registerCommand(pluginName, "Set pan", (id, value) =>
 	});
 	if (!busy)
 		callNext();
+});
+
+RPM.Manager.Plugins.registerCommand(pluginName, "Update distance based values", (minDist, maxDist, propVol, propPan) =>
+{
+	const min = RPM.Datas.Systems.SQUARE_SIZE * minDist;
+	const max = RPM.Datas.Systems.SQUARE_SIZE * maxDist;
+	const hero = RPM.Core.Game.current.hero.position;
+	const obj = RPM.Core.ReactionInterpreter.currentObject;
+	const dist = obj.position.distanceTo(hero);
+	const v = obj.position.clone().sub(hero);
+	v.applyAxisAngle(up, RPM.Scene.Map.current.camera.horizontalAngle * Math.PI / 180);
+	obj.properties[propVol] = Math.max(0, max - dist) * 100 / max;
+	obj.properties[propPan] = v.z * Math.max(0, (dist - min) / (max - min)) / max;
 });
